@@ -5,7 +5,7 @@ import {
   Account,
   AccountFactory,
   Account__factory,
-  EntryPoint,
+  IEntryPoint,
   RarimoNullifierRecoveryProvider,
   RegistrationSMTMock,
 } from "@ethers-v6";
@@ -22,8 +22,8 @@ import { ethers, zkit } from "hardhat";
 describe("Account", () => {
   const reverter = new Reverter();
 
-  const callGasLimit = 500_000n;
-  const verificationGasLimit = 500_000n;
+  const callGasLimit = 800_000n;
+  const verificationGasLimit = 800_000n;
   const maxFeePerGas = ethers.parseUnits("10", "gwei");
   const maxPriorityFeePerGas = ethers.parseUnits("5", "gwei");
 
@@ -31,7 +31,7 @@ describe("Account", () => {
   let USER1: SignerWithAddress;
   let USER2: SignerWithAddress;
 
-  let entryPoint: EntryPoint;
+  let entryPoint: IEntryPoint;
 
   let accountAddress: AddressLike;
 
@@ -49,7 +49,7 @@ describe("Account", () => {
   let registrationRoot: string;
   let nullifier: bigint;
 
-  async function getSignature(userOp: PackedUserOperationStruct) {
+  async function getSignature(userOp: PackedUserOperationStruct, signer: SignerWithAddress = USER1) {
     const domain = {
       name: "ERC4337",
       version: "1",
@@ -70,7 +70,7 @@ describe("Account", () => {
       ],
     };
 
-    return await USER1.signTypedData(domain, types, userOp);
+    return await signer.signTypedData(domain, types, userOp);
   }
 
   async function getUserOp(callData: string = "0x") {
@@ -98,17 +98,24 @@ describe("Account", () => {
     };
   }
 
-  async function checkUserOpError(userOp: PackedUserOperationStruct, tx: ContractTransactionResponse, error: string) {
+  async function checkUserOpError(
+    userOp: PackedUserOperationStruct,
+    tx: ContractTransactionResponse,
+    errorSignature: string,
+    errorArgsTypes: string[] = [],
+    errorArgs: any[] = [],
+  ) {
     const userOpHash = await entryPoint.getUserOpHash(userOp);
 
-    const encodedError = ethers.concat([
-      ethers.id("Error(string)").slice(0, 10),
-      ethers.AbiCoder.defaultAbiCoder().encode(["string"], [error]),
-    ]);
+    const selector = ethers.id(errorSignature).slice(0, 10);
+
+    const encodedArgs = ethers.AbiCoder.defaultAbiCoder().encode(errorArgsTypes, errorArgs);
+
+    const encodedError = ethers.concat([selector, encodedArgs]);
 
     await expect(tx)
       .to.emit(entryPoint, "UserOperationRevertReason")
-      .withArgs(userOpHash, accountAddress, 1, encodedError);
+      .withArgs(userOpHash, accountAddress, (await entryPoint.getNonce(accountAddress, 0)) - 1n, encodedError);
   }
 
   before(async () => {
@@ -175,7 +182,7 @@ describe("Account", () => {
 
     account = await ethers.getContractAt("Account", accountAddress);
 
-    await account.connect(USER1).setNullifier(nullifier);
+    await recoveryProvider.connect(OWNER).setNullifier(accountAddress, nullifier);
 
     await account.connect(USER1).addRecoveryProvider(recoveryProvider, "0x");
   });
@@ -221,7 +228,7 @@ describe("Account", () => {
 
       const tx = await entryPoint.handleOps([userOp], USER1.address);
 
-      await checkUserOpError(userOp, tx, "BaseAccountRecovery: Invalid recovery proof");
+      await checkUserOpError(userOp, tx, "InvalidRecoveryProof()");
 
       expect(await account.owner()).to.be.equal(USER1.address);
     });
@@ -239,7 +246,7 @@ describe("Account", () => {
 
       const tx = await entryPoint.handleOps([userOp], USER1.address);
 
-      await checkUserOpError(userOp, tx, "BaseAccountRecovery: new owner cannot be the zero address");
+      await checkUserOpError(userOp, tx, "ZeroAddress()");
 
       expect(await account.owner()).to.be.equal(USER1.address);
     });
@@ -257,9 +264,68 @@ describe("Account", () => {
 
       const tx = await entryPoint.handleOps([userOp], USER1.address);
 
-      await checkUserOpError(userOp, tx, "BaseAccountRecovery: unknown recovery provider");
+      await checkUserOpError(userOp, tx, "ProviderNotRegistered(address)", ["address"], [accountAddress]);
 
       expect(await account.owner()).to.be.equal(USER1.address);
+    });
+
+    it("should not change owner if the proof is re-used", async () => {
+      let proofPayload = getPayload(accountAddress, proof, registrationRoot);
+
+      let userOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverOwnership", [
+          OWNER.address,
+          await recoveryProvider.getAddress(),
+          proofPayload,
+        ]),
+      );
+
+      userOp.signature = await getSignature(userOp);
+
+      await entryPoint.handleOps([userOp], USER1.address);
+
+      expect(await account.owner()).to.be.equal(OWNER.address);
+
+      // re-using the same proof
+      userOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverOwnership", [
+          USER2.address,
+          await recoveryProvider.getAddress(),
+          proofPayload,
+        ]),
+      );
+
+      userOp.signature = await getSignature(userOp, OWNER);
+
+      const tx = await entryPoint.handleOps([userOp], OWNER.address);
+
+      await checkUserOpError(userOp, tx, "ProofAlreadyUsed()");
+
+      expect(await account.owner()).to.be.equal(OWNER.address);
+
+      // generating a new proof
+      const eventId = await recoveryProvider.getEventId(accountAddress);
+      const eventData = await recoveryProvider.getEventData();
+
+      const inputs = getQueryInputs(eventId, eventData);
+
+      proof = await query.generateProof(inputs);
+
+      proofPayload = getPayload(accountAddress, proof, registrationRoot);
+
+      userOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverOwnership", [
+          USER2.address,
+          await recoveryProvider.getAddress(),
+          proofPayload,
+        ]),
+      );
+
+      userOp.signature = await getSignature(userOp, OWNER);
+
+      await entryPoint.handleOps([userOp], OWNER.address);
+
+      expect(await account.owner()).to.be.equal(USER2.address);
     });
   });
 
@@ -292,33 +358,22 @@ describe("Account", () => {
     });
 
     it("should not allow to add zero address recovery provider", async () => {
-      await expect(account.connect(USER1).addRecoveryProvider(ZeroAddress, "0x")).to.be.rejectedWith(
-        "BaseAccountRecovery: provider address cannot be zero",
+      await expect(account.connect(USER1).addRecoveryProvider(ZeroAddress, "0x")).to.be.revertedWithCustomError(
+        account,
+        "ZeroAddress",
       );
     });
 
     it("should not allow to add recovery provider that is already registered", async () => {
-      await expect(
-        account.connect(USER1).addRecoveryProvider(await recoveryProvider.getAddress(), "0x"),
-      ).to.be.rejectedWith("BaseAccountRecovery: provider already added");
+      await expect(account.connect(USER1).addRecoveryProvider(await recoveryProvider.getAddress(), "0x"))
+        .to.be.revertedWithCustomError(account, "ProviderAlreadyAdded")
+        .withArgs(await recoveryProvider.getAddress());
     });
 
     it("should not allow to remove recovery provider that is not registered", async () => {
-      await expect(account.connect(USER1).removeRecoveryProvider(await accountAddress, "0x")).to.be.rejectedWith(
-        "BaseAccountRecovery: provider not registered",
-      );
-    });
-  });
-
-  describe("setNullifier", () => {
-    it("should set nullifier correctly", async () => {
-      await account.connect(USER1).setNullifier(100);
-
-      expect(await account.nullifier()).to.be.equal(100);
-    });
-
-    it("should not allow to set nullifier if the caller is no the owner", async () => {
-      await expect(account.connect(USER2).setNullifier(50)).to.be.rejectedWith("only owner");
+      await expect(account.connect(USER1).removeRecoveryProvider(accountAddress, "0x"))
+        .to.be.revertedWithCustomError(account, "ProviderNotRegistered")
+        .withArgs(accountAddress);
     });
   });
 });

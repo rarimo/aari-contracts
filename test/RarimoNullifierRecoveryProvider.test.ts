@@ -1,5 +1,5 @@
 import { getPayload, getQueryInputs } from "@/test/utils/utils";
-import { RarimoNullifierAccountMock, RarimoNullifierRecoveryProvider, RegistrationSMTMock } from "@ethers-v6";
+import { RarimoNullifierRecoveryProviderMock, RegistrationSMTMock } from "@ethers-v6";
 import { Reverter } from "@test-helpers";
 import { ProofqueryIdentityGroth16, queryIdentity } from "@zkit";
 
@@ -7,6 +7,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 import { expect } from "chai";
+import { ZeroAddress } from "ethers";
 import { ethers, zkit } from "hardhat";
 
 describe("RarimoNullifierRecoveryProvider", () => {
@@ -16,11 +17,9 @@ describe("RarimoNullifierRecoveryProvider", () => {
   let USER1: SignerWithAddress;
   let USER2: SignerWithAddress;
 
-  let recoveryProvider: RarimoNullifierRecoveryProvider;
+  let recoveryProvider: RarimoNullifierRecoveryProviderMock;
   let verifier: any;
   let registrationSMT: RegistrationSMTMock;
-
-  let accountMock: RarimoNullifierAccountMock;
 
   let query: queryIdentity;
 
@@ -33,11 +32,9 @@ describe("RarimoNullifierRecoveryProvider", () => {
 
     [OWNER, USER1, USER2] = await ethers.getSigners();
 
-    accountMock = await ethers.deployContract("RarimoNullifierAccountMock");
-
     query = await zkit.getCircuit("queryIdentity");
 
-    recoveryProvider = await ethers.deployContract("RarimoNullifierRecoveryProvider", {
+    recoveryProvider = await ethers.deployContract("RarimoNullifierRecoveryProviderMock", {
       libraries: {
         PoseidonUnit3L: await ethers.deployContract("PoseidonUnit3L", {
           libraries: {
@@ -60,7 +57,7 @@ describe("RarimoNullifierRecoveryProvider", () => {
   });
 
   beforeEach(async () => {
-    const eventId = await recoveryProvider.getEventId(await accountMock.getAddress());
+    const eventId = await recoveryProvider.getEventId(USER1.address);
     const eventData = await recoveryProvider.getEventData();
 
     const inputs = getQueryInputs(eventId, eventData);
@@ -71,7 +68,7 @@ describe("RarimoNullifierRecoveryProvider", () => {
 
     nullifier = proof.publicSignals.nullifier;
 
-    await accountMock.setNullifier(nullifier);
+    await recoveryProvider.connect(OWNER).setNullifier(USER1.address, nullifier);
 
     await registrationSMT.setValidRoot(registrationRoot);
   });
@@ -94,31 +91,54 @@ describe("RarimoNullifierRecoveryProvider", () => {
 
   describe("checkRecovery", () => {
     it("should check recovery correctly", async () => {
-      let proofPayload = getPayload(await accountMock.getAddress(), proof, registrationRoot);
+      let proofPayload = getPayload(USER1.address, proof, registrationRoot);
 
       expect(await recoveryProvider.checkRecovery(proofPayload)).to.be.true;
 
-      const eventId = await recoveryProvider.getEventId(await accountMock.getAddress());
+      // unregistered user
+      proofPayload = getPayload(USER2.address, proof, registrationRoot);
+
+      expect(await recoveryProvider.checkRecovery(proofPayload)).to.be.false;
+
+      // modified witness
+      const eventId = await recoveryProvider.getEventId(USER1.address);
       const eventData = await recoveryProvider.getEventData();
 
       const inputs = getQueryInputs(eventId, eventData);
       proof = await query.generateProof(inputs, { "main.selector": 100n });
 
-      proofPayload = getPayload(await accountMock.getAddress(), proof, registrationRoot);
+      proofPayload = getPayload(USER1.address, proof, registrationRoot);
       expect(await recoveryProvider.checkRecovery(proofPayload)).to.be.false;
     });
 
     it("should not allow to check  recovery for the incorrect SMT root", async () => {
-      const proofPayload = getPayload(
-        await accountMock.getAddress(),
-        proof,
-        ethers.toBeHex(proof.publicSignals.idStateRoot + 2, 32),
-      );
+      const proofPayload = getPayload(USER1.address, proof, ethers.toBeHex(proof.publicSignals.idStateRoot + 2, 32));
 
       await expect(recoveryProvider.checkRecovery(proofPayload)).to.be.revertedWithCustomError(
         recoveryProvider,
         "InvalidRegistrationRoot",
       );
+    });
+  });
+
+  describe("setNullifier", () => {
+    it("should set nullifier correctly", async () => {
+      await recoveryProvider.connect(OWNER).setNullifier(USER2.address, 100);
+
+      expect(await recoveryProvider.getNullifier(USER2.address)).to.be.equal(100);
+    });
+
+    it("should not allow to set the nullifier for the zero address", async () => {
+      await expect(recoveryProvider.connect(OWNER).setNullifier(ZeroAddress, 100)).to.be.revertedWithCustomError(
+        recoveryProvider,
+        "AccountZeroAddress",
+      );
+    });
+
+    it("should not allow to set the nullifier if the caller is not the owner", async () => {
+      await expect(recoveryProvider.connect(USER2).setNullifier(USER2.address, 50))
+        .to.be.revertedWithCustomError(recoveryProvider, "OwnableUnauthorizedAccount")
+        .withArgs(USER2.address);
     });
   });
 });

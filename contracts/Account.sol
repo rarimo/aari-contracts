@@ -7,16 +7,10 @@ import {SimpleAccount} from "@account-abstraction/contracts/accounts/SimpleAccou
 import {BaseAccountRecovery} from "./BaseAccountRecovery.sol";
 
 contract Account is SimpleAccount, BaseAccountRecovery {
-    uint256 public nullifier;
-
     constructor(IEntryPoint entryPoint_) SimpleAccount(entryPoint_) {}
 
     function initialize(address owner_) public override initializer {
         super.initialize(owner_);
-    }
-
-    function setNullifier(uint256 nullifier_) external onlyOwner {
-        nullifier = nullifier_;
     }
 
     function addRecoveryProvider(address provider_, bytes memory) external onlyOwner {

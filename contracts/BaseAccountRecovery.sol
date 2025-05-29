@@ -10,13 +10,21 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
 
     mapping(address => bool) internal _recoveryProviders;
 
-    function recoveryProviderExists(address provider_) external view returns (bool) {
+    mapping(bytes32 => bool) internal _proofHashesUsed;
+
+    error ZeroAddress();
+    error ProviderAlreadyAdded(address provider);
+    error ProviderNotRegistered(address provider);
+    error InvalidRecoveryProof();
+    error ProofAlreadyUsed();
+
+    function recoveryProviderExists(address provider_) public view returns (bool) {
         return _recoveryProviders[provider_];
     }
 
     function _addRecoveryProvider(address provider_) internal {
-        require(provider_ != address(0), "BaseAccountRecovery: provider address cannot be zero");
-        require(!_recoveryProviders[provider_], "BaseAccountRecovery: provider already added");
+        if (provider_ == address(0)) revert ZeroAddress();
+        if (_recoveryProviders[provider_]) revert ProviderAlreadyAdded(provider_);
 
         _recoveryProviders[provider_] = true;
 
@@ -24,7 +32,7 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
     }
 
     function _removeRecoveryProvider(address provider_) internal {
-        require(_recoveryProviders[provider_], "BaseAccountRecovery: provider not registered");
+        if (!_recoveryProviders[provider_]) revert ProviderNotRegistered(provider_);
 
         delete _recoveryProviders[provider_];
 
@@ -35,16 +43,15 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
         address newOwner_,
         address provider_,
         bytes memory proof_
-    ) internal view {
-        require(
-            newOwner_ != address(0),
-            "BaseAccountRecovery: new owner cannot be the zero address"
-        );
-        require(_recoveryProviders[provider_], "BaseAccountRecovery: unknown recovery provider");
+    ) internal {
+        if (newOwner_ == address(0)) revert ZeroAddress();
+        if (!_recoveryProviders[provider_]) revert ProviderNotRegistered(provider_);
+        if (!IRecoveryProvider(provider_).checkRecovery(proof_)) revert InvalidRecoveryProof();
 
-        require(
-            IRecoveryProvider(provider_).checkRecovery(proof_),
-            "BaseAccountRecovery: Invalid recovery proof"
-        );
+        bytes32 proofHash_ = keccak256(proof_);
+
+        if (_proofHashesUsed[proofHash_]) revert ProofAlreadyUsed();
+
+        _proofHashesUsed[proofHash_] = true;
     }
 }

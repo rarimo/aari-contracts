@@ -12,7 +12,6 @@ import {PublicSignalsBuilder} from "@rarimo/passport-contracts/sdk/lib/PublicSig
 import {PoseidonUnit3L} from "./../libraries/Poseidon.sol";
 
 import {IRecoveryProvider} from "./../interfaces/IRecoveryProvider.sol";
-import {IRarimoNullifierAccount} from "./interfaces/IRarimoNullifierAccount.sol";
 
 contract RarimoNullifierRecoveryProvider is
     IRecoveryProvider,
@@ -27,6 +26,10 @@ contract RarimoNullifierRecoveryProvider is
     address public verifier;
     address public registrationSMT;
 
+    mapping(address => uint256) internal _accountsToNullifiers;
+
+    error AccountZeroAddress();
+
     function __RarimoNullifierRecoveryProvider_init(
         address verifier_,
         address registrationSMT_
@@ -35,6 +38,12 @@ contract RarimoNullifierRecoveryProvider is
 
         verifier = verifier_;
         registrationSMT = registrationSMT_;
+    }
+
+    function setNullifier(address account_, uint256 nullifier_) external onlyOwner {
+        if (account_ == address(0)) revert AccountZeroAddress();
+
+        _accountsToNullifiers[account_] = nullifier_;
     }
 
     function checkRecovery(bytes memory proof_) external view returns (bool) {
@@ -73,7 +82,7 @@ contract RarimoNullifierRecoveryProvider is
 
         dataPointer_ = PublicSignalsBuilder.newPublicSignalsBuilder(
             SELECTOR,
-            IRarimoNullifierAccount(account_).nullifier()
+            _accountsToNullifiers[account_]
         );
         dataPointer_.withEventIdAndData(getEventId(account_), getEventData());
         dataPointer_.withCurrentDate(currentDate_, 1 days);

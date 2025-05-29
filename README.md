@@ -1,4 +1,4 @@
-# Hardhat template 
+# Hardhat template
 
 Template hardhat repository for ad-hoc smart contracts development.
 

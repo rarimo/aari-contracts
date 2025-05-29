@@ -1,8 +1,8 @@
 name: Feature request
 description: Suggest a new feature
-labels: ['feature']
-assignees: 
-  - 
+labels: ["feature"]
+assignees:
+  -
 body:
   - type: textarea
     id: feature-description

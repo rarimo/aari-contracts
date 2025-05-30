@@ -1,10 +1,6 @@
-# Hardhat template 
+# PoC: Universal Account Recovery Standard (UARS)
 
-Template hardhat repository for ad-hoc smart contracts development.
-
-### How to use
-
-The template works out of the box. To clean up the repo, you may need to delete the mock contracts, tests and migration files.
+The proof of concept implementation of the [Universal Account Recovery Standard (UARS)](https://ethereum-magicians.org/t/eip-xxxx-universal-account-recovery-standard-uars/24080).
 
 #### Compilation
 
@@ -56,11 +52,3 @@ npm run generate-types
 - [`hardhat-contract-sizer`](https://www.npmjs.com/package/hardhat-contract-sizer)
 - [`hardhat-gas-reporter`](https://www.npmjs.com/package/hardhat-gas-reporter)
 - [`solidity-coverage`](https://www.npmjs.com/package/solidity-coverage)
-
-### Other niceties
-
-- The template comes with presetup `prettier`, `solhint` and `eslint` that lint the project via `husky` before compilation hook.
-- The `.env.example` file is provided to check what is required as ENVs
-- Preinstalled `@openzeppelin/contracts` and `@solarity/solidity-lib`
-
-> Install the `ESLint` extension in VSCode to enable `ESLint`.

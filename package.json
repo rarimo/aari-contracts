@@ -17,7 +17,8 @@
     "compile": "npx hardhat compile",
     "coverage": "npx hardhat coverage --solcoverjs ./.solcover.ts",
     "clean": "npx hardhat clean",
-    "test": "npx hardhat test",
+    "prepare-circuits": "npx hardhat zkit make && ./scripts/replace-circuits-files.sh",
+    "test": "npm run prepare-circuits && npx hardhat test",
     "test-all": "npx hardhat migrate && npm run test",
     "private-network": "npx hardhat node",
     "private-network-fork": "npx hardhat node --fork https://mainnet.infura.io/v3/$(grep INFURA_KEY .env | cut -d '\"' -f2)",
@@ -39,11 +40,15 @@
     "publish-to-npm": "npm run lint-fix && bash ./scripts/publish.sh --public"
   },
   "dependencies": {
+    "@account-abstraction/contracts": "^0.8.0",
+    "@nomicfoundation/ethereumjs-util": "^9.0.4",
     "@openzeppelin/contracts": "5.3.0",
     "@openzeppelin/contracts-upgradeable": "5.3.0",
+    "@rarimo/passport-contracts": "^0.3.1",
     "@solarity/solidity-lib": "3.1.0"
   },
   "devDependencies": {
+    "@iden3/js-crypto": "^1.3.1",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",

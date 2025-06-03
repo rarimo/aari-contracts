@@ -54,6 +54,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-verify": "^2.0.13",
     "@solarity/chai-zkit": "^0.3.3",
+    "@solarity/circom-lib": "^0.2.2",
     "@solarity/hardhat-gobind": "^1.3.0",
     "@solarity/hardhat-markup": "^1.0.10",
     "@solarity/hardhat-migrate": "^3.0.3",

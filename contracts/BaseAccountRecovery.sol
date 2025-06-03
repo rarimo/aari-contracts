@@ -1,30 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import {IAccountRecovery} from "./interfaces/IAccountRecovery.sol";
 import {IRecoveryProvider} from "./interfaces/IRecoveryProvider.sol";
 
 abstract contract BaseAccountRecovery is IAccountRecovery {
-    // bytes4(keccak256("recoverOwnership(address,address,bytes)"))
-    bytes4 public constant MAGIC = 0x3cfb167d;
-
     mapping(address => bool) internal _recoveryProviders;
-
-    mapping(bytes32 => bool) internal _proofHashesUsed;
 
     error ZeroAddress();
     error ProviderAlreadyAdded(address provider);
     error ProviderNotRegistered(address provider);
-    error InvalidRecoveryProof();
-    error ProofAlreadyUsed();
 
     function recoveryProviderExists(address provider_) public view returns (bool) {
         return _recoveryProviders[provider_];
     }
 
-    function _addRecoveryProvider(address provider_) internal {
+    function _addRecoveryProvider(address provider_, bytes memory recoveryData_) internal {
         if (provider_ == address(0)) revert ZeroAddress();
         if (_recoveryProviders[provider_]) revert ProviderAlreadyAdded(provider_);
+
+        IRecoveryProvider(provider_).subscribe(recoveryData_);
 
         _recoveryProviders[provider_] = true;
 
@@ -33,6 +28,8 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
 
     function _removeRecoveryProvider(address provider_) internal {
         if (!_recoveryProviders[provider_]) revert ProviderNotRegistered(provider_);
+
+        IRecoveryProvider(provider_).unsubscribe();
 
         delete _recoveryProviders[provider_];
 
@@ -46,12 +43,7 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
     ) internal {
         if (newOwner_ == address(0)) revert ZeroAddress();
         if (!_recoveryProviders[provider_]) revert ProviderNotRegistered(provider_);
-        if (!IRecoveryProvider(provider_).checkRecovery(proof_)) revert InvalidRecoveryProof();
 
-        bytes32 proofHash_ = keccak256(proof_);
-
-        if (_proofHashesUsed[proofHash_]) revert ProofAlreadyUsed();
-
-        _proofHashesUsed[proofHash_] = true;
+        IRecoveryProvider(provider_).recover(newOwner_, proof_);
     }
 }

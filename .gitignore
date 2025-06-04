@@ -14,3 +14,5 @@ generated-types
 
 # Hardhat migrate
 .storage.json
+
+contracts/verifiers

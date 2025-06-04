@@ -1,27 +1,9 @@
-import { ProofRecoveryCommitmentGroth16 } from "@zkit";
+import { poseidon } from "@iden3/js-crypto";
+import { HashCommitment } from "@zkit";
 
-import { Groth16Proof } from "@solarity/zkit";
+import { Groth16ProofPoints } from "@solarity/zkit";
 
 import { ethers } from "ethers";
-
-export function bigIntToBytes32(bigintValue: bigint): string {
-  return "0x" + bigintValue.toString(16).padStart(64, "0");
-}
-
-export function stringToBigInt(stringValue: string): bigint {
-  return BigInt("0x" + Buffer.from(stringValue, "utf8").toString("hex"));
-}
-
-export function formatProof(data: Groth16Proof) {
-  return {
-    a: [data.pi_a[0], data.pi_a[1]],
-    b: [
-      [data.pi_b[0][1], data.pi_b[0][0]],
-      [data.pi_b[1][1], data.pi_b[1][0]],
-    ],
-    c: [data.pi_c[0], data.pi_c[1]],
-  };
-}
 
 export function packTwoUint128(a, b) {
   const maxUint128 = (1n << 128n) - 1n;
@@ -35,11 +17,28 @@ export function packTwoUint128(a, b) {
   return "0x" + packed.toString(16).padStart(64, "0");
 }
 
-export function getPayload(proof: ProofRecoveryCommitmentGroth16) {
-  const formattedProof = formatProof(proof.proof);
+export async function getSubscribePayload(secret: string, circuit: HashCommitment, isValid: boolean = true) {
+  const bigIntSecret = ethers.toBigInt(ethers.toUtf8Bytes(secret));
+
+  const commitmentHash = ethers.toBeHex(
+    poseidon.hash([isValid ? bigIntSecret : ethers.toBigInt(ethers.toUtf8Bytes("invalid"))]),
+  );
+
+  const proof = await circuit.generateProof({
+    secret: bigIntSecret,
+  });
+
+  const calldata = await circuit.generateCalldata(proof);
 
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ["uint256[2]", "uint256[2][2]", "uint256[2]"],
-    [formattedProof.a, formattedProof.b, formattedProof.c],
+    ["bytes32", "tuple(uint256[2] a, uint256[2][2] b, uint256[2] c)"],
+    [commitmentHash, calldata.proofPoints],
+  );
+}
+
+export function getPayload(proofPoints: Groth16ProofPoints) {
+  return ethers.AbiCoder.defaultAbiCoder().encode(
+    ["tuple(uint256[2] a, uint256[2][2] b, uint256[2] c)"],
+    [proofPoints],
   );
 }

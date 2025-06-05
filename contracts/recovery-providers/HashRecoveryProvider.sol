@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.20;
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -17,22 +17,26 @@ contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgr
     address public commitmentVerifier;
 
     mapping(address => bytes32) internal _accountsToCommitments;
-
     mapping(bytes32 => bool) internal _proofHashesUsed;
 
     error ProofAlreadyUsed();
     error InvalidRecoveryProof();
 
-    function __HashRecoveryProvider_init(
+    function initialize(
         address recoveryVerifier_,
         address commitmentVerifier_
     ) external initializer {
-        __Ownable_init(_msgSender());
+        __Ownable_init(msg.sender);
 
         recoveryVerifier = recoveryVerifier_;
         commitmentVerifier = commitmentVerifier_;
     }
 
+    /**
+     * @notice A function that subscribes an account to the provider. We decided to include
+     * a ZK proof in the `recoveryData` for an additional sanity check that the `commitmentHash`
+     * has been generated correctly. This check is optional and can be skipped.
+     */
     function subscribe(bytes memory recoveryData_) external {
         (bytes32 commitmentHash_, Groth16VerifierHelper.ProofPoints memory proofPoints_) = abi
             .decode(recoveryData_, (bytes32, Groth16VerifierHelper.ProofPoints));
@@ -49,12 +53,22 @@ contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgr
         emit AccountSubscribed(msg.sender);
     }
 
+    /**
+     * @notice A function that unsubscribes an account from the provider by deleting all the
+     * related account data.
+     */
     function unsubscribe() external {
         delete _accountsToCommitments[msg.sender];
 
         emit AccountUnsubscribed(msg.sender);
     }
 
+    /**
+     * @notice A function that checks an account recoverability via a ZK proof.
+     * Both the commitment and the hash of the new owner are set as public outputs
+     * to prevent frontrunning. The hash of the `proof` is used as nonce which may not
+     * be 100% secure for a production application.
+     */
     function recover(address newOwner_, bytes memory proof_) external {
         bytes32 proofHash_ = keccak256(proof_);
 

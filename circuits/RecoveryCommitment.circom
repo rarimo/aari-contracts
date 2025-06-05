@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC0-1.0
 pragma circom 2.1.6;
 
 include "@solarity/circom-lib/blinders/Commitment.circom";

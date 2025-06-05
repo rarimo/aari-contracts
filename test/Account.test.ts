@@ -1,4 +1,4 @@
-import { PackedUserOperationStruct } from "@/generated-types/ethers/contracts/Account";
+import { PackedUserOperationStruct } from "@/generated-types/ethers/contracts/account/Account";
 import { getPayload, getSubscribePayload, packTwoUint128 } from "@/test/utils/utils";
 import EntryPointArtifact from "@account-abstraction/contracts/artifacts/EntryPoint.json";
 import { Account, AccountFactory, Account__factory, HashRecoveryProvider, IEntryPoint } from "@ethers-v6";
@@ -116,7 +116,7 @@ describe("Account", () => {
     hashCommitment = await zkit.getCircuit("HashCommitment");
 
     const EntryPointFactory = await ethers.getContractFactoryFromArtifact(EntryPointArtifact);
-    entryPoint = await EntryPointFactory.deploy();
+    entryPoint = (await EntryPointFactory.deploy()) as any;
 
     accountFactory = await ethers.deployContract("AccountFactory", [entryPoint]);
 
@@ -129,10 +129,7 @@ describe("Account", () => {
     recoveryVerifier = await ethers.deployContract("RecoveryCommitmentGroth16Verifier");
     commitmentVerifier = await ethers.deployContract("HashCommitmentGroth16Verifier");
 
-    await recoveryProvider.__HashRecoveryProvider_init(
-      await recoveryVerifier.getAddress(),
-      await commitmentVerifier.getAddress(),
-    );
+    await recoveryProvider.initialize(await recoveryVerifier.getAddress(), await commitmentVerifier.getAddress());
 
     await reverter.snapshot();
   });

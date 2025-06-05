@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.20;
 
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -29,6 +29,7 @@ contract AccountFactory {
         if (addr_.code.length > 0) {
             return Account(payable(addr_));
         }
+
         account_ = Account(
             payable(
                 new ERC1967Proxy{salt: bytes32(salt_)}(

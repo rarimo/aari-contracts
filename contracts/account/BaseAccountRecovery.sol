@@ -1,16 +1,19 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.20;
 
-import {IAccountRecovery} from "./interfaces/IAccountRecovery.sol";
-import {IRecoveryProvider} from "./interfaces/IRecoveryProvider.sol";
+import {IAccountRecovery} from "../interfaces/IAccountRecovery.sol";
+import {IRecoveryProvider} from "../interfaces/IRecoveryProvider.sol";
 
 abstract contract BaseAccountRecovery is IAccountRecovery {
-    mapping(address => bool) internal _recoveryProviders;
+    mapping(address => bool) private _recoveryProviders;
 
     error ZeroAddress();
     error ProviderAlreadyAdded(address provider);
     error ProviderNotRegistered(address provider);
 
+    /**
+     * @inheritdoc IAccountRecovery
+     */
     function recoveryProviderExists(address provider_) public view returns (bool) {
         return _recoveryProviders[provider_];
     }

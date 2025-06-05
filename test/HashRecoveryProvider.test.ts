@@ -41,10 +41,7 @@ describe("HashRecoveryProvider", () => {
     recoveryVerifier = await ethers.deployContract("RecoveryCommitmentGroth16Verifier");
     commitmentVerifier = await ethers.deployContract("HashCommitmentGroth16Verifier");
 
-    await recoveryProvider.__HashRecoveryProvider_init(
-      await recoveryVerifier.getAddress(),
-      await commitmentVerifier.getAddress(),
-    );
+    await recoveryProvider.initialize(await recoveryVerifier.getAddress(), await commitmentVerifier.getAddress());
 
     await reverter.snapshot();
   });
@@ -60,10 +57,7 @@ describe("HashRecoveryProvider", () => {
 
     it("should not allow to re-initialize the contract", async () => {
       await expect(
-        recoveryProvider.__HashRecoveryProvider_init(
-          await commitmentVerifier.getAddress(),
-          await recoveryVerifier.getAddress(),
-        ),
+        recoveryProvider.initialize(await commitmentVerifier.getAddress(), await recoveryVerifier.getAddress()),
       ).to.be.revertedWithCustomError(recoveryProvider, "InvalidInitialization");
     });
   });
@@ -117,7 +111,7 @@ describe("HashRecoveryProvider", () => {
 
   describe("checkRecovery", () => {
     beforeEach(async () => {
-      const payload = getSubscribePayload(secret, hashCommitment);
+      const payload = await getSubscribePayload(secret, hashCommitment);
 
       await recoveryProvider.connect(USER1).subscribe(payload);
     });

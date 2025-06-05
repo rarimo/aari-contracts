@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.20;
 
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {SimpleAccount} from "@account-abstraction/contracts/accounts/SimpleAccount.sol";
+
+import {IAccountRecovery} from "../interfaces/IAccountRecovery.sol";
 
 import {BaseAccountRecovery} from "./BaseAccountRecovery.sol";
 
@@ -13,6 +15,9 @@ contract Account is SimpleAccount, BaseAccountRecovery {
         super.initialize(owner_);
     }
 
+    /**
+     * @inheritdoc IAccountRecovery
+     */
     function addRecoveryProvider(
         address provider_,
         bytes memory recoveryData_
@@ -20,10 +25,16 @@ contract Account is SimpleAccount, BaseAccountRecovery {
         _addRecoveryProvider(provider_, recoveryData_);
     }
 
+    /**
+     * @inheritdoc IAccountRecovery
+     */
     function removeRecoveryProvider(address provider_) external onlyOwner {
         _removeRecoveryProvider(provider_);
     }
 
+    /**
+     * @inheritdoc IAccountRecovery
+     */
     function recoverOwnership(
         address newOwner_,
         address provider_,

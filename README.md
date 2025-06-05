@@ -1,54 +1,36 @@
-# PoC: Universal Account Recovery Standard (UARS)
+# ERC-7947 Reference Implementation
 
-The proof of concept implementation of the [Account Abstraction Recovery Interface (AARI)](https://ethereum-magicians.org/t/eip-7947-account-abstraction-recovery-interface-aari/24080).
+Introduce a universal account abstraction recovery mechanism `recoverOwnership(newOwner, provider, proof)` along with recovery provider management functions for smart accounts to securely update their owner.
 
-#### Compilation
+Link to [ERC-7947](https://ethereum-magicians.org/t/eip-7947-account-abstraction-recovery-interface-aari/24080).
 
-To compile the contracts, use the next script:
+> [!WARNING]
+> Should not be used in production. This implementation serves only as an example.
+ 
+## Overview
 
-```bash
-npm run compile
-```
+This repository hosts a set of smart contracts and circuits that showcase a minimal ERC-7947 account abstraction recovery mechanics.
 
-#### Test
+- The account used is an ERC-4337 [SimpleAccount](https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/accounts/SimpleAccount.sol) by eth-infinitism.
+- The recovery provider is a bare minimal "hash preimage" verifier via a Groth16 ZK proof.
+- The circuits are written in Circom leveraging [hardhat-zkit](https://github.com/dl-solarity/hardhat-zkit) plugin.
 
-To run the tests, execute the following command:
+## Usage
 
-```bash
-npm run test
-```
+You will find Solidity smart contracts implementation in the `contracts` directory and Circom circuits in the `circuits` directory.
 
-Or to see the coverage, run:
-
-```bash
-npm run coverage
-```
-
-#### Local deployment
-
-To deploy the contracts locally, run the following commands (in the different terminals):
+Install all the required dependencies:
 
 ```bash
-npm run private-network
-npm run deploy-localhost
+npm install
 ```
 
-#### Bindings
-
-The command to generate the bindings is as follows:
+To run the all the tests, execute:
 
 ```bash
-npm run generate-types
+npm run test-all
 ```
 
-> See the full list of available commands in the `package.json` file.
+## Disclaimer
 
-### Integrated plugins
-
-- Hardhat official `ethers` + `ethers-v6`
-- [`Typechain`](https://www.npmjs.com/package/@typechain/hardhat)
-- [`hardhat-migrate`](https://www.npmjs.com/package/@solarity/hardhat-migrate), [`hardhat-markup`](https://www.npmjs.com/package/@solarity/hardhat-markup), [`hardhat-gobind`](https://www.npmjs.com/package/@solarity/hardhat-gobind)
-- [`hardhat-zkit`](https://www.npmjs.com/package/@solarity/hardhat-zkit), [`chai-zkit`](https://www.npmjs.com/package/@solarity/chai-zkit)
-- [`hardhat-contract-sizer`](https://www.npmjs.com/package/hardhat-contract-sizer)
-- [`hardhat-gas-reporter`](https://www.npmjs.com/package/hardhat-gas-reporter)
-- [`solidity-coverage`](https://www.npmjs.com/package/solidity-coverage)
+GLHF!

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {SimpleAccount} from "@account-abstraction/contracts/accounts/SimpleAccount.sol";
@@ -13,11 +13,14 @@ contract Account is SimpleAccount, BaseAccountRecovery {
         super.initialize(owner_);
     }
 
-    function addRecoveryProvider(address provider_, bytes memory) external onlyOwner {
-        _addRecoveryProvider(provider_);
+    function addRecoveryProvider(
+        address provider_,
+        bytes memory recoveryData_
+    ) external onlyOwner {
+        _addRecoveryProvider(provider_, recoveryData_);
     }
 
-    function removeRecoveryProvider(address provider_, bytes memory) external onlyOwner {
+    function removeRecoveryProvider(address provider_) external onlyOwner {
         _removeRecoveryProvider(provider_);
     }
 
@@ -25,7 +28,7 @@ contract Account is SimpleAccount, BaseAccountRecovery {
         address newOwner_,
         address provider_,
         bytes memory proof_
-    ) external returns (bytes4) {
+    ) external returns (bool) {
         _validateRecovery(newOwner_, provider_, proof_);
 
         address oldOwner_ = owner;
@@ -33,6 +36,6 @@ contract Account is SimpleAccount, BaseAccountRecovery {
 
         emit OwnershipRecovered(oldOwner_, newOwner_);
 
-        return MAGIC;
+        return true;
     }
 }

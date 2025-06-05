@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MITs
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 /**
@@ -23,20 +23,22 @@ interface IAccountRecovery {
     /**
      * @notice An `onlyOwner` function to add a new recovery provider.
      * SHOULD be access controlled.
+     * MUST check that `provider` is not `address(0)`.
+     * MUST call `subscribe` on the `provider`.
      *
      * @param provider the address of a recovery provider (ZKP verifier) to add.
-     * @param addData custom optional data for the recovery provider.
+     * @param recoveryData custom data (commitment) for the recovery provider.
      */
-    function addRecoveryProvider(address provider, bytes memory addData) external;
+    function addRecoveryProvider(address provider, bytes memory recoveryData) external;
 
     /**
      * @notice An `onlyOwner` function to remove an existing recovery provider.
      * SHOULD be access controlled.
+     * MUST call `unsubscribe` on the `provider`.
      *
      * @param provider the address of a previously added recovery provider to remove.
-     * @param removeData custom optional data for the recovery provider.
      */
-    function removeRecoveryProvider(address provider, bytes memory removeData) external;
+    function removeRecoveryProvider(address provider) external;
 
     /**
      * @notice A view function to check if a provider has been previously added.
@@ -48,18 +50,19 @@ interface IAccountRecovery {
 
     /**
      * @notice A non-view function to recover ownership of a smart account.
-     * MUST check that `provider` exists in the account or is `address(0)`.
+     * MUST check that `provider` exists in the account.
+     * MUST call `recover` on the `provider`.
      * MUST update the account owner to `newOwner` if `proof` verification succeeds.
-     * MUST return `MAGIC` if the ownership change is successful.
+     * MUST return `true` if the ownership recovery is successful.
      *
      * @param newOwner the address of a new owner.
      * @param provider the address of a recovery provider.
      * @param proof an encoded proof of recovery (ZKP/ZKAI, signature, etc).
-     * @return magic the `MAGIC` if recovery is successful, otherwise any other value.
+     * @return `true` if recovery is successful, `false` (or revert) otherwise.
      */
     function recoverOwnership(
         address newOwner,
         address provider,
         bytes memory proof
-    ) external returns (bytes4 magic);
+    ) external returns (bool);
 }

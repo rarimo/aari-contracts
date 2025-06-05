@@ -1,19 +1,11 @@
 import { PackedUserOperationStruct } from "@/generated-types/ethers/contracts/Account";
-import { getPayload, getQueryInputs, packTwoUint128 } from "@/test/utils/utils";
+import { getPayload, getSubscribePayload, packTwoUint128 } from "@/test/utils/utils";
 import EntryPointArtifact from "@account-abstraction/contracts/artifacts/EntryPoint.json";
-import {
-  Account,
-  AccountFactory,
-  Account__factory,
-  IEntryPoint,
-  RarimoNullifierRecoveryProvider,
-  RegistrationSMTMock,
-} from "@ethers-v6";
+import { Account, AccountFactory, Account__factory, HashRecoveryProvider, IEntryPoint } from "@ethers-v6";
 import { Reverter } from "@test-helpers";
-import { ProofqueryIdentityGroth16, queryIdentity } from "@zkit";
+import { HashCommitment, RecoveryCommitment } from "@zkit";
 
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 import { expect } from "chai";
 import { AddressLike, ContractTransactionResponse, ZeroAddress } from "ethers";
@@ -27,6 +19,8 @@ describe("Account", () => {
   const maxFeePerGas = ethers.parseUnits("10", "gwei");
   const maxPriorityFeePerGas = ethers.parseUnits("5", "gwei");
 
+  const secret = "secret recovery message";
+
   let OWNER: SignerWithAddress;
   let USER1: SignerWithAddress;
   let USER2: SignerWithAddress;
@@ -39,15 +33,12 @@ describe("Account", () => {
   let account: Account;
   let accountFactory: AccountFactory;
 
-  let recoveryProvider: RarimoNullifierRecoveryProvider;
-  let verifier: any;
-  let registrationSMT: RegistrationSMTMock;
+  let recoveryProvider: HashRecoveryProvider;
+  let recoveryVerifier: any;
+  let commitmentVerifier: any;
 
-  let query: queryIdentity;
-
-  let proof: ProofqueryIdentityGroth16;
-  let registrationRoot: string;
-  let nullifier: bigint;
+  let recoveryCommitment: RecoveryCommitment;
+  let hashCommitment: HashCommitment;
 
   async function getSignature(userOp: PackedUserOperationStruct, signer: SignerWithAddress = USER1) {
     const domain = {
@@ -119,34 +110,28 @@ describe("Account", () => {
   }
 
   before(async () => {
-    await time.increaseTo(1733738711);
-
     [OWNER, USER1, USER2] = await ethers.getSigners();
 
-    query = await zkit.getCircuit("queryIdentity");
+    recoveryCommitment = await zkit.getCircuit("RecoveryCommitment");
+    hashCommitment = await zkit.getCircuit("HashCommitment");
 
     const EntryPointFactory = await ethers.getContractFactoryFromArtifact(EntryPointArtifact);
     entryPoint = await EntryPointFactory.deploy();
 
     accountFactory = await ethers.deployContract("AccountFactory", [entryPoint]);
 
-    recoveryProvider = await ethers.deployContract("RarimoNullifierRecoveryProvider", {
+    recoveryProvider = await ethers.deployContract("HashRecoveryProvider", {
       libraries: {
-        PoseidonUnit3L: await ethers.deployContract("PoseidonUnit3L", {
-          libraries: {
-            PoseidonT4: await ethers.deployContract("PoseidonT4"),
-          },
-        }),
+        PoseidonT2: await ethers.deployContract("PoseidonT2"),
       },
     });
 
-    verifier = await ethers.deployContract("QueryIdentityProofVerifier");
+    recoveryVerifier = await ethers.deployContract("RecoveryCommitmentGroth16Verifier");
+    commitmentVerifier = await ethers.deployContract("HashCommitmentGroth16Verifier");
 
-    registrationSMT = await ethers.deployContract("RegistrationSMTMock");
-
-    await recoveryProvider.__RarimoNullifierRecoveryProvider_init(
-      await verifier.getAddress(),
-      await registrationSMT.getAddress(),
+    await recoveryProvider.__HashRecoveryProvider_init(
+      await recoveryVerifier.getAddress(),
+      await commitmentVerifier.getAddress(),
     );
 
     await reverter.snapshot();
@@ -154,19 +139,6 @@ describe("Account", () => {
 
   beforeEach(async () => {
     accountAddress = await accountFactory.getContractAddress(USER1.address, 0);
-
-    const eventId = await recoveryProvider.getEventId(accountAddress);
-    const eventData = await recoveryProvider.getEventData();
-
-    const inputs = getQueryInputs(eventId, eventData);
-
-    proof = await query.generateProof(inputs);
-
-    registrationRoot = ethers.toBeHex(proof.publicSignals.idStateRoot, 32);
-
-    nullifier = proof.publicSignals.nullifier;
-
-    await registrationSMT.setValidRoot(registrationRoot);
 
     Account = await ethers.getContractFactory("Account");
 
@@ -182,20 +154,27 @@ describe("Account", () => {
 
     account = await ethers.getContractAt("Account", accountAddress);
 
-    await recoveryProvider.connect(OWNER).setNullifier(accountAddress, nullifier);
+    const payload = await getSubscribePayload(secret, hashCommitment);
 
-    await account.connect(USER1).addRecoveryProvider(recoveryProvider, "0x");
+    await account.connect(USER1).addRecoveryProvider(recoveryProvider, payload);
   });
 
   afterEach(reverter.revert);
 
   describe("checkRecovery", () => {
     it("should change owner correctly", async () => {
+      const proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(USER2.address),
+      });
+
+      const calldata = await recoveryCommitment.generateCalldata(proof);
+
       const recoverOwnershipUserOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
           USER2.address,
           await recoveryProvider.getAddress(),
-          getPayload(accountAddress, proof, registrationRoot),
+          getPayload(calldata.proofPoints),
         ]),
       );
 
@@ -209,24 +188,79 @@ describe("Account", () => {
     });
 
     it("should not change owner if the proof is incorrect", async () => {
-      const eventId = await recoveryProvider.getEventId(accountAddress);
-      const eventData = await recoveryProvider.getEventData();
+      let proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(USER2.address),
+      });
 
-      const inputs = getQueryInputs(eventId, eventData);
+      let calldata = await recoveryCommitment.generateCalldata(proof);
 
-      proof = await query.generateProof(inputs, { "main.selector": 50n });
+      const proofPoints = calldata.proofPoints;
 
-      const userOp = await getUserOp(
+      const encodedProof = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["uint256[2]", "uint256[2][2]", "uint256[2]"],
+        [proofPoints.a, proofPoints.b, proofPoints.a],
+      );
+
+      let userOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
           USER2.address,
           await recoveryProvider.getAddress(),
-          getPayload(accountAddress, proof, registrationRoot),
+          encodedProof,
         ]),
       );
 
       userOp.signature = await getSignature(userOp);
 
-      const tx = await entryPoint.handleOps([userOp], USER1.address);
+      let tx = await entryPoint.handleOps([userOp], USER1.address);
+
+      await checkUserOpError(userOp, tx, "InvalidRecoveryProof()");
+
+      expect(await account.owner()).to.be.equal(USER1.address);
+
+      // invalid hash pre-image
+      proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes("invalid pre-image")),
+        newOwner: BigInt(USER2.address),
+      });
+
+      calldata = await recoveryCommitment.generateCalldata(proof);
+
+      userOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverOwnership", [
+          USER2.address,
+          await recoveryProvider.getAddress(),
+          getPayload(calldata.proofPoints),
+        ]),
+      );
+
+      userOp.signature = await getSignature(userOp);
+
+      tx = await entryPoint.handleOps([userOp], USER1.address);
+
+      await checkUserOpError(userOp, tx, "InvalidRecoveryProof()");
+
+      expect(await account.owner()).to.be.equal(USER1.address);
+
+      // invalid new owner
+      proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(OWNER.address),
+      });
+
+      calldata = await recoveryCommitment.generateCalldata(proof);
+
+      userOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverOwnership", [
+          USER2.address,
+          await recoveryProvider.getAddress(),
+          getPayload(calldata.proofPoints),
+        ]),
+      );
+
+      userOp.signature = await getSignature(userOp);
+
+      tx = await entryPoint.handleOps([userOp], USER1.address);
 
       await checkUserOpError(userOp, tx, "InvalidRecoveryProof()");
 
@@ -234,11 +268,18 @@ describe("Account", () => {
     });
 
     it("should not change owner if the new owner is zero address", async () => {
+      const proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(ZeroAddress),
+      });
+
+      const calldata = await recoveryCommitment.generateCalldata(proof);
+
       const userOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
           ZeroAddress,
           await recoveryProvider.getAddress(),
-          getPayload(accountAddress, proof, registrationRoot),
+          getPayload(calldata.proofPoints),
         ]),
       );
 
@@ -252,11 +293,18 @@ describe("Account", () => {
     });
 
     it("should not change owner if the provider is not registered", async () => {
+      const proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(USER2.address),
+      });
+
+      const calldata = await recoveryCommitment.generateCalldata(proof);
+
       const userOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
           USER2.address,
           accountAddress,
-          getPayload(accountAddress, proof, registrationRoot),
+          getPayload(calldata.proofPoints),
         ]),
       );
 
@@ -270,7 +318,14 @@ describe("Account", () => {
     });
 
     it("should not change owner if the proof is re-used", async () => {
-      let proofPayload = getPayload(accountAddress, proof, registrationRoot);
+      let proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(OWNER.address),
+      });
+
+      let calldata = await recoveryCommitment.generateCalldata(proof);
+
+      let proofPayload = getPayload(calldata.proofPoints);
 
       let userOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
@@ -304,14 +359,14 @@ describe("Account", () => {
       expect(await account.owner()).to.be.equal(OWNER.address);
 
       // generating a new proof
-      const eventId = await recoveryProvider.getEventId(accountAddress);
-      const eventData = await recoveryProvider.getEventData();
+      proof = await recoveryCommitment.generateProof({
+        secret: ethers.toBigInt(ethers.toUtf8Bytes(secret)),
+        newOwner: BigInt(USER2.address),
+      });
 
-      const inputs = getQueryInputs(eventId, eventData);
+      calldata = await recoveryCommitment.generateCalldata(proof);
 
-      proof = await query.generateProof(inputs);
-
-      proofPayload = getPayload(accountAddress, proof, registrationRoot);
+      proofPayload = getPayload(calldata.proofPoints);
 
       userOp = await getUserOp(
         Account.interface.encodeFunctionData("recoverOwnership", [
@@ -331,30 +386,30 @@ describe("Account", () => {
 
   describe("recovery provider management", () => {
     it("should add and remove recovery providers correctly", async () => {
-      let tx = await account.connect(USER1).addRecoveryProvider(await accountFactory.getAddress(), "0x");
+      await account.connect(USER1).removeRecoveryProvider(await recoveryProvider.getAddress());
+
+      const payload = await getSubscribePayload(secret, hashCommitment);
+
+      let tx = await account.connect(USER1).addRecoveryProvider(await recoveryProvider.getAddress(), payload);
 
       await expect(tx)
         .to.emit(account, "RecoveryProviderAdded")
-        .withArgs(await accountFactory.getAddress());
+        .withArgs(await recoveryProvider.getAddress());
 
-      expect(await account.recoveryProviderExists(await accountFactory.getAddress())).to.be.true;
       expect(await account.recoveryProviderExists(await recoveryProvider.getAddress())).to.be.true;
 
-      tx = await account.connect(USER1).removeRecoveryProvider(await accountFactory.getAddress(), "0x");
+      tx = await account.connect(USER1).removeRecoveryProvider(await recoveryProvider.getAddress());
 
       await expect(tx)
         .to.emit(account, "RecoveryProviderRemoved")
-        .withArgs(await accountFactory.getAddress());
+        .withArgs(await recoveryProvider.getAddress());
 
-      expect(await account.recoveryProviderExists(await accountFactory.getAddress())).to.be.false;
-      expect(await account.recoveryProviderExists(await recoveryProvider.getAddress())).to.be.true;
+      expect(await account.recoveryProviderExists(await recoveryProvider.getAddress())).to.be.false;
     });
 
     it("should not allow to add and remove recovery providers if the caller is not the owner", async () => {
       await expect(account.connect(USER2).addRecoveryProvider(accountAddress, "0x")).to.be.rejectedWith("only owner");
-      await expect(account.connect(USER2).removeRecoveryProvider(accountAddress, "0x")).to.be.rejectedWith(
-        "only owner",
-      );
+      await expect(account.connect(USER2).removeRecoveryProvider(accountAddress)).to.be.rejectedWith("only owner");
     });
 
     it("should not allow to add zero address recovery provider", async () => {
@@ -371,7 +426,7 @@ describe("Account", () => {
     });
 
     it("should not allow to remove recovery provider that is not registered", async () => {
-      await expect(account.connect(USER1).removeRecoveryProvider(accountAddress, "0x"))
+      await expect(account.connect(USER1).removeRecoveryProvider(accountAddress))
         .to.be.revertedWithCustomError(account, "ProviderNotRegistered")
         .withArgs(accountAddress);
     });

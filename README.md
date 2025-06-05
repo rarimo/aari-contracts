@@ -1,6 +1,6 @@
 # PoC: Universal Account Recovery Standard (UARS)
 
-The proof of concept implementation of the [Universal Account Recovery Standard (UARS)](https://ethereum-magicians.org/t/eip-xxxx-universal-account-recovery-standard-uars/24080).
+The proof of concept implementation of the [Account Abstraction Recovery Interface (AARI)](https://ethereum-magicians.org/t/eip-7947-account-abstraction-recovery-interface-aari/24080).
 
 #### Compilation
 

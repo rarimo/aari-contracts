@@ -28,7 +28,8 @@ npm install
 To run the all the tests, execute:
 
 ```bash
-npm run test-all
+
+npm run test
 ```
 
 ## Disclaimer

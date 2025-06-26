@@ -6,12 +6,14 @@ pragma solidity ^0.8.20;
  */
 interface IRecoveryProvider {
     /**
-     * MUST be emitted in the `subscribe` function.
+     * MUST be emitted whenever a new account subscribes to
+     * the recovery provider (e.g. in the `subscribe` function).
      */
     event AccountSubscribed(address indexed account);
 
     /**
-     * MUST be emitted in the `unsubscribe` function.
+     * MUST be emitted whenever an account unsubscribes from
+     * the recovery provider (e.g. in the `unsubscribe` function).
      */
     event AccountUnsubscribed(address indexed account);
 

@@ -14,7 +14,7 @@ abstract contract BaseAccountRecovery is IAccountRecovery {
     /**
      * @inheritdoc IAccountRecovery
      */
-    function recoveryProviderExists(address provider_) public view returns (bool) {
+    function recoveryProviderAdded(address provider_) public view returns (bool) {
         return _recoveryProviders[provider_];
     }
 

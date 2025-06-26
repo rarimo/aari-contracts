@@ -393,7 +393,7 @@ describe("Account", () => {
         .to.emit(account, "RecoveryProviderAdded")
         .withArgs(await recoveryProvider.getAddress());
 
-      expect(await account.recoveryProviderExists(await recoveryProvider.getAddress())).to.be.true;
+      expect(await account.recoveryProviderAdded(await recoveryProvider.getAddress())).to.be.true;
 
       tx = await account.connect(USER1).removeRecoveryProvider(await recoveryProvider.getAddress());
 
@@ -401,7 +401,7 @@ describe("Account", () => {
         .to.emit(account, "RecoveryProviderRemoved")
         .withArgs(await recoveryProvider.getAddress());
 
-      expect(await account.recoveryProviderExists(await recoveryProvider.getAddress())).to.be.false;
+      expect(await account.recoveryProviderAdded(await recoveryProvider.getAddress())).to.be.false;
     });
 
     it("should not allow to add and remove recovery providers if the caller is not the owner", async () => {

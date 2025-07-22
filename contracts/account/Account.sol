@@ -4,11 +4,9 @@ pragma solidity ^0.8.20;
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {SimpleAccount} from "@account-abstraction/contracts/accounts/SimpleAccount.sol";
 
-import {IAccountRecovery} from "../interfaces/IAccountRecovery.sol";
+import {AAccountRecovery} from "@solarity/solidity-lib/account-abstraction/AAccountRecovery.sol";
 
-import {BaseAccountRecovery} from "./BaseAccountRecovery.sol";
-
-contract Account is SimpleAccount, BaseAccountRecovery {
+contract Account is SimpleAccount, AAccountRecovery {
     constructor(IEntryPoint entryPoint_) SimpleAccount(entryPoint_) {}
 
     function initialize(address owner_) public override initializer {
@@ -16,30 +14,30 @@ contract Account is SimpleAccount, BaseAccountRecovery {
     }
 
     /**
-     * @inheritdoc IAccountRecovery
+     * @inheritdoc AAccountRecovery
      */
     function addRecoveryProvider(
         address provider_,
         bytes memory recoveryData_
-    ) external onlyOwner {
+    ) external override onlyOwner {
         _addRecoveryProvider(provider_, recoveryData_);
     }
 
     /**
-     * @inheritdoc IAccountRecovery
+     * @inheritdoc AAccountRecovery
      */
-    function removeRecoveryProvider(address provider_) external onlyOwner {
+    function removeRecoveryProvider(address provider_) external override onlyOwner {
         _removeRecoveryProvider(provider_);
     }
 
     /**
-     * @inheritdoc IAccountRecovery
+     * @inheritdoc AAccountRecovery
      */
     function recoverOwnership(
         address newOwner_,
         address provider_,
         bytes memory proof_
-    ) external returns (bool) {
+    ) external override returns (bool) {
         _validateRecovery(newOwner_, provider_, proof_);
 
         address oldOwner_ = owner;

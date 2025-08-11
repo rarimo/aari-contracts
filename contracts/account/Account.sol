@@ -19,31 +19,33 @@ contract Account is SimpleAccount, AAccountRecovery {
     function addRecoveryProvider(
         address provider_,
         bytes memory recoveryData_
-    ) external override onlyOwner {
+    ) external payable override onlyOwner {
         _addRecoveryProvider(provider_, recoveryData_);
     }
 
     /**
      * @inheritdoc AAccountRecovery
      */
-    function removeRecoveryProvider(address provider_) external override onlyOwner {
+    function removeRecoveryProvider(address provider_) external payable override onlyOwner {
         _removeRecoveryProvider(provider_);
     }
 
     /**
      * @inheritdoc AAccountRecovery
      */
-    function recoverOwnership(
-        address newOwner_,
+    function recoverAccess(
+        bytes memory subject_,
         address provider_,
         bytes memory proof_
     ) external override returns (bool) {
-        _validateRecovery(newOwner_, provider_, proof_);
+        address newOwner_ = abi.decode(subject_, (address));
+        require(newOwner_ != address(0), ZeroAddress());
 
-        address oldOwner_ = owner;
+        _validateRecovery(subject_, provider_, proof_);
+
         owner = newOwner_;
 
-        emit OwnershipRecovered(oldOwner_, newOwner_);
+        emit AccessRecovered(subject_);
 
         return true;
     }

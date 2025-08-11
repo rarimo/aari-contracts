@@ -26,6 +26,10 @@ describe("HashRecoveryProvider", () => {
   let recoveryCommitment: RecoveryCommitment;
   let hashCommitment: HashCommitment;
 
+  function encodeAddress(address: string): string {
+    return ethers.AbiCoder.defaultAbiCoder().encode(["address"], [address]);
+  }
+
   before(async () => {
     [OWNER, USER1, USER2] = await ethers.getSigners();
 
@@ -124,7 +128,7 @@ describe("HashRecoveryProvider", () => {
 
       const calldata = await recoveryCommitment.generateCalldata(proof);
 
-      await recoveryProvider.connect(USER1).recover(USER2.address, getPayload(calldata.proofPoints));
+      await recoveryProvider.connect(USER1).recover(encodeAddress(USER2.address), getPayload(calldata.proofPoints));
     });
 
     it("should check recovery with invalid proof correctly", async () => {
@@ -142,10 +146,9 @@ describe("HashRecoveryProvider", () => {
         [proofPoints.a, proofPoints.b, proofPoints.a],
       );
 
-      await expect(recoveryProvider.connect(USER1).recover(USER2.address, encodedProof)).to.be.revertedWithCustomError(
-        recoveryProvider,
-        "InvalidRecoveryProof",
-      );
+      await expect(
+        recoveryProvider.connect(USER1).recover(encodeAddress(USER2.address), encodedProof),
+      ).to.be.revertedWithCustomError(recoveryProvider, "InvalidRecoveryProof");
     });
 
     it("should check recovery with invalid hash pre-image correctly", async () => {
@@ -157,7 +160,7 @@ describe("HashRecoveryProvider", () => {
       const calldata = await recoveryCommitment.generateCalldata(proof);
 
       await expect(
-        recoveryProvider.connect(USER1).recover(USER2.address, getPayload(calldata.proofPoints)),
+        recoveryProvider.connect(USER1).recover(encodeAddress(USER2.address), getPayload(calldata.proofPoints)),
       ).to.be.revertedWithCustomError(recoveryProvider, "InvalidRecoveryProof");
     });
 
@@ -170,7 +173,7 @@ describe("HashRecoveryProvider", () => {
       const calldata = await recoveryCommitment.generateCalldata(proof);
 
       await expect(
-        recoveryProvider.connect(USER1).recover(OWNER.address, getPayload(calldata.proofPoints)),
+        recoveryProvider.connect(USER1).recover(encodeAddress(OWNER.address), getPayload(calldata.proofPoints)),
       ).to.be.revertedWithCustomError(recoveryProvider, "InvalidRecoveryProof");
     });
   });

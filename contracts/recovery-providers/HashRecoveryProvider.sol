@@ -5,10 +5,9 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {Groth16VerifierHelper} from "@solarity/solidity-lib/libs/zkp/Groth16VerifierHelper.sol";
+import {IRecoveryProvider} from "@solarity/solidity-lib/interfaces/account-abstraction/IRecoveryProvider.sol";
 
 import {PoseidonT2} from "poseidon-solidity/PoseidonT2.sol";
-
-import {IRecoveryProvider} from "../interfaces/IRecoveryProvider.sol";
 
 contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgradeable {
     using Groth16VerifierHelper for address;
@@ -37,7 +36,7 @@ contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgr
      * a ZK proof in the `recoveryData` for an additional sanity check that the `commitmentHash`
      * has been generated correctly. This check is optional and can be skipped.
      */
-    function subscribe(bytes memory recoveryData_) external {
+    function subscribe(bytes memory recoveryData_) external payable {
         (bytes32 commitmentHash_, Groth16VerifierHelper.ProofPoints memory proofPoints_) = abi
             .decode(recoveryData_, (bytes32, Groth16VerifierHelper.ProofPoints));
 
@@ -57,7 +56,7 @@ contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgr
      * @notice A function that unsubscribes an account from the provider by deleting all the
      * related account data.
      */
-    function unsubscribe() external {
+    function unsubscribe() external payable {
         delete _accountsToCommitments[msg.sender];
 
         emit AccountUnsubscribed(msg.sender);
@@ -69,7 +68,8 @@ contract HashRecoveryProvider is IRecoveryProvider, OwnableUpgradeable, UUPSUpgr
      * to prevent frontrunning. The hash of the `proof` is used as nonce which may not
      * be 100% secure for a production application.
      */
-    function recover(address newOwner_, bytes memory proof_) external {
+    function recover(bytes memory object_, bytes memory proof_) external {
+        address newOwner_ = abi.decode(object_, (address));
         bytes32 proofHash_ = keccak256(proof_);
 
         if (_proofHashesUsed[proofHash_]) revert ProofAlreadyUsed();

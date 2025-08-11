@@ -22,7 +22,7 @@
     "test": "npm run prepare-circuits && npx hardhat test",
     "private-network": "npx hardhat node",
     "generate-types": "TYPECHAIN_FORCE=true npx hardhat typechain && npx hardhat gobind",
-    "solhint-check": "solhint \"./contracts/**/*.sol\"",
+    "solhint-check": "solhint --noPoster \"./contracts/**/*.sol\"",
     "lint-fix": "npm run lint-sol-fix && npm run lint-ts-fix && npm run lint-json-fix && npm run solhint-check",
     "lint-json-fix": "prettier --write \"./**/*.json\"",
     "lint-ts-fix": "prettier --write \"./**/*.ts\" --ignore-path .prettierignore",
@@ -30,12 +30,12 @@
     "publish-to-npm": "npm run lint-fix && bash ./scripts/publish.sh --public"
   },
   "dependencies": {
-    "@account-abstraction/contracts": "^0.8.0",
+    "@account-abstraction/contracts": "0.8.0",
     "@openzeppelin/contracts": "5.4.0",
     "@openzeppelin/contracts-upgradeable": "5.4.0",
-    "@rarimo/passport-contracts": "^0.3.1",
-    "@solarity/circom-lib": "^0.2.2",
-    "@solarity/solidity-lib": "3.1.4",
+    "@rarimo/passport-contracts": "0.3.1",
+    "@solarity/circom-lib": "0.2.2",
+    "@solarity/solidity-lib": "3.1.7",
     "poseidon-solidity": "0.0.5"
   },
   "devDependencies": {
@@ -65,7 +65,7 @@
     "mocha": "^11.4.0",
     "prettier": "^3.5.0",
     "prettier-plugin-solidity": "^1.4.3",
-    "solhint": "^5.1.0",
+    "solhint": "^6.0.0",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.16",
     "ts-node": "^10.9.2",

@@ -40,6 +40,10 @@ describe("Account", () => {
   let recoveryCommitment: RecoveryCommitment;
   let hashCommitment: HashCommitment;
 
+  function encodeAddress(address: string): string {
+    return ethers.AbiCoder.defaultAbiCoder().encode(["address"], [address]);
+  }
+
   async function getSignature(userOp: PackedUserOperationStruct, signer: SignerWithAddress = USER1) {
     const domain = {
       name: "ERC4337",
@@ -166,20 +170,21 @@ describe("Account", () => {
       });
 
       const calldata = await recoveryCommitment.generateCalldata(proof);
+      const subjectData = encodeAddress(USER2.address);
 
-      const recoverOwnershipUserOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+      const recoverAccessUserOp = await getUserOp(
+        Account.interface.encodeFunctionData("recoverAccess", [
+          subjectData,
           await recoveryProvider.getAddress(),
           getPayload(calldata.proofPoints),
         ]),
       );
 
-      recoverOwnershipUserOp.signature = await getSignature(recoverOwnershipUserOp);
+      recoverAccessUserOp.signature = await getSignature(recoverAccessUserOp);
 
-      const tx = await entryPoint.handleOps([recoverOwnershipUserOp], USER1.address);
+      const tx = await entryPoint.handleOps([recoverAccessUserOp], USER1.address);
 
-      await expect(tx).to.emit(account, "OwnershipRecovered").withArgs(USER1.address, USER2.address);
+      await expect(tx).to.emit(account, "AccessRecovered").withArgs(subjectData);
 
       expect(await account.owner()).to.be.equal(USER2.address);
     });
@@ -200,8 +205,8 @@ describe("Account", () => {
       );
 
       let userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           await recoveryProvider.getAddress(),
           encodedProof,
         ]),
@@ -224,8 +229,8 @@ describe("Account", () => {
       calldata = await recoveryCommitment.generateCalldata(proof);
 
       userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           await recoveryProvider.getAddress(),
           getPayload(calldata.proofPoints),
         ]),
@@ -248,8 +253,8 @@ describe("Account", () => {
       calldata = await recoveryCommitment.generateCalldata(proof);
 
       userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           await recoveryProvider.getAddress(),
           getPayload(calldata.proofPoints),
         ]),
@@ -273,8 +278,8 @@ describe("Account", () => {
       const calldata = await recoveryCommitment.generateCalldata(proof);
 
       const userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          ZeroAddress,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(ZeroAddress),
           await recoveryProvider.getAddress(),
           getPayload(calldata.proofPoints),
         ]),
@@ -298,8 +303,8 @@ describe("Account", () => {
       const calldata = await recoveryCommitment.generateCalldata(proof);
 
       const userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           accountAddress,
           getPayload(calldata.proofPoints),
         ]),
@@ -325,8 +330,8 @@ describe("Account", () => {
       let proofPayload = getPayload(calldata.proofPoints);
 
       let userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          OWNER.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(OWNER.address),
           await recoveryProvider.getAddress(),
           proofPayload,
         ]),
@@ -340,8 +345,8 @@ describe("Account", () => {
 
       // re-using the same proof
       userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           await recoveryProvider.getAddress(),
           proofPayload,
         ]),
@@ -366,8 +371,8 @@ describe("Account", () => {
       proofPayload = getPayload(calldata.proofPoints);
 
       userOp = await getUserOp(
-        Account.interface.encodeFunctionData("recoverOwnership", [
-          USER2.address,
+        Account.interface.encodeFunctionData("recoverAccess", [
+          encodeAddress(USER2.address),
           await recoveryProvider.getAddress(),
           proofPayload,
         ]),

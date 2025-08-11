@@ -1,11 +1,11 @@
 # ERC-7947 Reference Implementation
 
-Introduce a universal account abstraction recovery mechanism `recoverOwnership(newOwner, provider, proof)` along with recovery provider management functions for smart accounts to securely update their owner.
+Introduce a universal account abstraction recovery mechanism `recoverAccess(subject, provider, proof)` along with recovery provider management functions for smart accounts to securely update their access subject.
 
 Link to [ERC-7947](https://ethereum-magicians.org/t/eip-7947-account-abstraction-recovery-interface-aari/24080).
 
 > [!WARNING]
-> Should not be used in production. This implementation serves only as an example.
+> Use at your own risk. This implementation serves only as an example.
  
 ## Overview
 
@@ -28,7 +28,6 @@ npm install
 To run the all the tests, execute:
 
 ```bash
-
 npm run test
 ```
 
